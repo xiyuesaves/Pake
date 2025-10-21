@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>型号数据搜索导出工具</title>
+    <script src="xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            background: #f9f9f9;
+        }
+        .search-area {
+            margin: 20px 0;
+            padding: 20px;
+            background: #e7f3ff;
+            border-radius: 5px;
+        }
+        .search-box {
+            width: 70%;
+            padding: 12px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .btn:active {
+            transform: translateY(1px);
+        }
+        .btn-primary {
+            background: #007bff;
+            color: white;
+        }
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: black;
+        }
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+        .btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        .results-area {
+            margin-top: 20px;
+            display: none;
+        }
+        .stats {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .data-table th,
+        .data-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        .data-table th {
+            background: #007bff;
+            color: white;
+            font-weight: bold;
+        }
+        .data-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        .model-suggestions {
+            border: 1px solid #ccc;
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            position: absolute;
+            background: white;
+            width: 70%;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+        }
+        .suggestion-item:hover {
+            background: #f0f8ff;
+        }
+        .search-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .search-controls {
+            display: flex;
+            gap: 10px;
+        }
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #d4edda;
+            border-radius: 5px;
+            display: none;
+        }
+        .export-options {
+            margin: 15px 0;
+            padding: 15px;
+            background: #fff3cd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>型号数据搜索导出工具</h1>
+        
+        <div class="upload-area">
+            <h3>第一步：上传数据库文件</h3>
+            <input type="file" id="fileInput" accept=".xlsx,.xls" />
+            <p>支持 .xlsx 和 .xls 格式，文件应包含：型号、Make、Model、Submodel、Liters、Year列</p>
+            <div id="fileInfo" class="file-info"></div>
+        </div>
+
+        <div class="search-area">
+            <h3>第二步：搜索型号</h3>
+            <div class="search-container">
+                <input type="text" id="searchInput" class="search-box" placeholder="输入型号进行搜索..." />
+                <div class="search-controls">
+                    <button id="searchBtn" class="btn btn-primary" onclick="searchModel()">搜索</button>
+                    <button class="btn btn-warning" onclick="clearSearch()">清空</button>
+                </div>
+                <div id="suggestions" class="model-suggestions"></div>
+            </div>
+            <div class="stats">
+                <div>数据库记录数: <span id="totalCount">0</span></div>
+                <div>唯一型号数: <span id="modelCount">0</span></div>
+            </div>
+        </div>
+
+        <div class="results-area" id="resultsArea">
+            <h3>第三步：导出数据</h3>
+            <div class="stats">
+                <div>找到 <span id="resultCount">0</span> 条匹配记录</div>
+                <div>当前型号: <span id="currentModel" style="font-weight: bold;"></span></div>
+            </div>
+            
+            <div class="export-options">
+                <h4>导出选项：</h4>
+                <button class="btn btn-success" onclick="exportSelectedData('excel')">导出Excel文件</button>
+                <button class="btn btn-info" onclick="exportSelectedData('txt')">导出适配TXT文件</button>
+                <button class="btn btn-primary" onclick="exportAllData()">导出全部数据库</button>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <h4>完整数据预览:</h4>
+                <div id="dataPreview"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let database = [];
+        let allModels = [];
+        let currentSearchModel = '';
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成，初始化事件监听...');
+            
+            // 文件上传处理
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', function(e) {
+                    console.log('文件选择变化');
+                    const file = e.target.files[0];
+                    if (file) {
+                        loadDatabase(file);
+                    }
+                });
+            }
+
+            // 搜索按钮事件
+            const searchBtn = document.getElementById('searchBtn');
+            if (searchBtn) {
+                searchBtn.addEventListener('click', function(e) {
+                    console.log('搜索按钮被点击');
+                    e.preventDefault();
+                    searchModel();
+                });
+            }
+
+            // 回车键搜索
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        console.log('回车键触发搜索');
+                        e.preventDefault();
+                        searchModel();
+                    }
+                });
+            }
+
+            // 更新按钮状态
+            updateButtonState();
+        });
+
+        function loadDatabase(file) {
+            console.log('开始加载文件:', file.name);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const wb = XLSX.read(e.target.result, { type: "array" });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(ws, { header: "A" });
+                    
+                    console.log('Excel文件解析成功，行数:', json.length);
+                    
+                    // 处理数据（跳过表头）
+                    database = processDatabaseData(json);
+                    
+                    // 获取所有唯一型号
+                    allModels = [...new Set(database.map(item => item.型号))].sort();
+                    
+                    // 更新统计信息
+                    updateStats();
+                    
+                    // 设置搜索框自动完成
+                    setupAutocomplete();
+                    
+                    // 显示文件信息
+                    document.getElementById('fileInfo').style.display = 'block';
+                    document.getElementById('fileInfo').innerHTML = 
+                        `文件已加载: ${file.name} (${database.length} 条记录, ${allModels.length} 个型号)`;
+                    
+                    alert(`数据库加载成功！共 ${database.length} 条记录，${allModels.length} 个型号。`);
+                    
+                } catch (error) {
+                    console.error("加载数据库出错:", error);
+                    alert("加载文件时出错: " + error.message);
+                }
+            };
+            reader.onerror = function(e) {
+                console.error("文件读取错误:", e);
+                alert("文件读取失败，请重试。");
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function processDatabaseData(data) {
+            const result = [];
+            
+            console.log('处理数据，总行数:', data.length);
+            
+            // 从第二行开始（跳过表头）
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                if (row.A) { // 只要有型号就处理
+                    result.push({
+                        型号: row.A || '',      // 型号
+                        Make: row.B || '',       // Make
+                        Model: row.C || '',      // Model
+                        Submodel: row.D || '',   // Submodel
+                        Liters: row.E || '',     // Liters
+                        Year: row.F || ''        // Year
+                    });
+                }
+            }
+            
+            console.log('处理后的数据条数:', result.length);
+            return result;
+        }
+
+        function updateStats() {
+            document.getElementById('totalCount').textContent = database.length;
+            document.getElementById('modelCount').textContent = allModels.length;
+            updateButtonState();
+        }
+
+        function updateButtonState() {
+            const searchBtn = document.getElementById('searchBtn');
+            if (searchBtn) {
+                searchBtn.disabled = database.length === 0;
+            }
+        }
+
+        // 搜索功能
+        function setupAutocomplete() {
+            const searchInput = document.getElementById('searchInput');
+            const suggestions = document.getElementById('suggestions');
+            
+            if (!searchInput || !suggestions) return;
+            
+            searchInput.addEventListener('input', function() {
+                const value = this.value.toLowerCase();
+                if (value.length < 1) {
+                    suggestions.style.display = 'none';
+                    return;
+                }
+                
+                const filtered = allModels.filter(model => 
+                    model.toLowerCase().includes(value)
+                );
+                
+                if (filtered.length > 0) {
+                    suggestions.innerHTML = filtered.map(model => 
+                        `<div class="suggestion-item" onclick="selectSuggestion('${model.replace(/'/g, "\\'")}')">${model}</div>`
+                    ).join('');
+                    suggestions.style.display = 'block';
+                } else {
+                    suggestions.style.display = 'none';
+                }
+            });
+            
+            // 点击页面其他区域隐藏建议
+            document.addEventListener('click', function(e) {
+                if (suggestions && !searchInput.contains(e.target) && !suggestions.contains(e.target)) {
+                    suggestions.style.display = 'none';
+                }
+            });
+        }
+
+        function selectSuggestion(model) {
+            console.log('选择建议:', model);
+            document.getElementById('searchInput').value = model;
+            document.getElementById('suggestions').style.display = 'none';
+            searchModel(model);
+        }
+
+        function searchModel(inputModel = null) {
+            console.log('执行搜索，输入:', inputModel);
+            
+            const searchTerm = inputModel || document.getElementById('searchInput').value.trim();
+            
+            if (!searchTerm) {
+                alert('请输入型号进行搜索');
+                return;
+            }
+            
+            if (database.length === 0) {
+                alert('请先上传数据库文件');
+                return;
+            }
+            
+            currentSearchModel = searchTerm;
+            
+            // 精确匹配搜索
+            const results = database.filter(item => 
+                item.型号.toLowerCase() === searchTerm.toLowerCase()
+            );
+            
+            console.log('搜索结果:', results.length, '条记录');
+            
+            if (results.length === 0) {
+                alert(`未找到型号 "${searchTerm}" 的数据`);
+                return;
+            }
+            
+            // 显示结果
+            displayResults(results);
+        }
+
+        function displayResults(results) {
+            document.getElementById('resultCount').textContent = results.length;
+            document.getElementById('currentModel').textContent = currentSearchModel;
+            
+            // 处理数据用于显示
+            const processedData = processDataForExport(results);
+            const finalData = addCombinedColumn(processedData);
+            
+            // 显示完整数据预览
+            displayDataPreview(finalData);
+            
+            // 显示结果区域
+            document.getElementById('resultsArea').style.display = 'block';
+        }
+
+        function displayDataPreview(data) {
+            const preview = document.getElementById('dataPreview');
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>型号</th>
+                            <th>Make</th>
+                            <th>Model</th>
+                            <th>Liters</th>
+                            <th>Submodel</th>
+                            <th>Year</th>
+                            <th>Combined (G列)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.forEach(item => {
+                html += `
+                    <tr>
+                        <td>${item.型号}</td>
+                        <td>${item.Make}</td>
+                        <td>${item.Model}</td>
+                        <td>${item.Liters}</td>
+                        <td>${item.Submodel}</td>
+                        <td>${item.Year}</td>
+                        <td><strong>${item.Combined}</strong></td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            preview.innerHTML = html;
+        }
+
+        // 数据处理功能
+        function processDataForExport(data) {
+            console.log('开始数据处理...');
+            
+            // 第一步：给Liters列数据加"L"
+            const step1 = data.map(item => {
+                const liters = item.Liters;
+                if (liters && !liters.toString().toUpperCase().endsWith('L')) {
+                    return {
+                        ...item,
+                        Liters: liters.toString().trim() + 'L'
+                    };
+                }
+                return item;
+            });
+            
+            console.log('第一步完成 - 添加L后缀:', step1.length);
+            
+            // 第二步：合并Submodel
+            const step2Map = new Map();
+            step1.forEach(item => {
+                const key = `${item.型号}|${item.Make}|${item.Model}|${item.Liters}|${item.Year}`;
+                if (!step2Map.has(key)) {
+                    step2Map.set(key, {
+                        型号: item.型号,
+                        Make: item.Make,
+                        Model: item.Model,
+                        Liters: item.Liters,
+                        Year: item.Year,
+                        Submodels: [item.Submodel]
+                    });
+                } else {
+                    const existing = step2Map.get(key);
+                    if (!existing.Submodels.includes(item.Submodel)) {
+                        existing.Submodels.push(item.Submodel);
+                    }
+                }
+            });
+            
+            const step2 = Array.from(step2Map.values()).map(item => ({
+                型号: item.型号,
+                Make: item.Make,
+                Model: item.Model,
+                Liters: item.Liters,
+                Year: item.Year,
+                Submodel: item.Submodels.sort().join('/')
+            }));
+            
+            console.log('第二步完成 - 合并Submodel:', step2.length);
+            
+            // 第三步：合并Year
+            const step3Map = new Map();
+            step2.forEach(item => {
+                const key = `${item.型号}|${item.Make}|${item.Model}|${item.Liters}|${item.Submodel}`;
+                if (!step3Map.has(key)) {
+                    step3Map.set(key, {
+                        型号: item.型号,
+                        Make: item.Make,
+                        Model: item.Model,
+                        Liters: item.Liters,
+                        Submodel: item.Submodel,
+                        Years: [parseInt(item.Year)]
+                    });
+                } else {
+                    const existing = step3Map.get(key);
+                    const year = parseInt(item.Year);
+                    if (!isNaN(year) && !existing.Years.includes(year)) {
+                        existing.Years.push(year);
+                    }
+                }
+            });
+            
+            const step3 = Array.from(step3Map.values()).map(item => ({
+                型号: item.型号,
+                Make: item.Make,
+                Model: item.Model,
+                Liters: item.Liters,
+                Submodel: item.Submodel,
+                Year: mergeYearRanges(item.Years.sort((a, b) => a - b))
+            }));
+            
+            console.log('第三步完成 - 合并Year:', step3.length);
+            
+            return step3;
+        }
+
+        function addCombinedColumn(data) {
+            return data.map(item => ({
+                ...item,
+                Combined: `${item.Make} ${item.Model} ${item.Submodel} ${item.Liters} ${item.Year}`.trim()
+            }));
+        }
+
+        function mergeYearRanges(years) {
+            if (years.length === 0) return "";
+            if (years.length === 1) return years[0].toString();
+
+            const ranges = [];
+            let start = years[0];
+            let end = years[0];
+
+            for (let i = 1; i < years.length; i++) {
+                if (years[i] === end + 1) {
+                    end = years[i];
+                } else {
+                    if (start === end) {
+                        ranges.push(start.toString());
+                    } else {
+                        ranges.push(`${start}-${end}`);
+                    }
+                    start = years[i];
+                    end = years[i];
+                }
+            }
+
+            // 处理最后一个范围
+            if (start === end) {
+                ranges.push(start.toString());
+            } else {
+                ranges.push(`${start}-${end}`);
+            }
+
+            return ranges.join(", ");
+        }
+
+        // 导出功能
+        function exportSelectedData(format = 'excel') {
+            if (!currentSearchModel) {
+                alert('请先搜索一个型号');
+                return;
+            }
+            
+            const results = database.filter(item => 
+                item.型号.toLowerCase() === currentSearchModel.toLowerCase()
+            );
+            
+            if (results.length === 0) {
+                alert('没有数据可导出');
+                return;
+            }
+            
+            // 处理数据
+            const processedData = processDataForExport(results);
+            const finalData = addCombinedColumn(processedData);
+            
+            if (format === 'excel') {
+                exportToExcel(finalData, `${currentSearchModel}_处理数据`);
+            } else if (format === 'txt') {
+                exportToTxt(finalData, `${currentSearchModel}_适配数据`);
+            }
+        }
+
+        function exportAllData() {
+            if (database.length === 0) {
+                alert('数据库为空，请先上传文件');
+                return;
+            }
+            
+            const processedData = processDataForExport(database);
+            const finalData = addCombinedColumn(processedData);
+            exportToExcel(finalData, '完整数据库_处理数据');
+        }
+
+        function exportToExcel(data, filename) {
+            console.log('开始导出Excel数据，条数:', data.length);
+            
+            // 准备导出数据（包含G列）
+            const exportData = data.map(item => ({
+                '型号': item.型号,
+                'Make': item.Make,
+                'Model': item.Model,
+                'Liters': item.Liters,
+                'Submodel': item.Submodel,
+                'Year': item.Year,
+                'Combined': item.Combined  // G列：合并数据
+            }));
+            
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            XLSX.utils.book_append_sheet(wb, ws, '处理数据');
+            
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, '-');
+            XLSX.writeFile(wb, `${filename}_${timestamp}.xlsx`);
+            
+            alert(`Excel导出成功！共导出 ${data.length} 条记录。`);
+        }
+
+        function exportToTxt(data, filename) {
+            console.log('开始导出TXT数据，条数:', data.length);
+            
+            // 提取G列数据
+            const txtContent = data.map(item => item.Combined).join('\n');
+            
+            // 创建Blob对象
+            const blob = new Blob([txtContent], { type: 'text/plain;charset=utf-8' });
+            
+            // 创建下载链接
+            const link = document.createElement('a');
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:]/g, '-');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${filename}_${timestamp}.txt`;
+            
+            // 触发下载
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            alert(`适配TXT文件导出成功！共导出 ${data.length} 行数据。`);
+        }
+
+        function clearSearch() {
+            console.log('清空搜索');
+            document.getElementById('searchInput').value = '';
+            document.getElementById('resultsArea').style.display = 'none';
+            document.getElementById('dataPreview').innerHTML = '';
+            document.getElementById('suggestions').style.display = 'none';
+            currentSearchModel = '';
+        }
+    </script>
+</body>
+</html>
