@@ -106,6 +106,8 @@ class PakeBuildManager {
       process.env.HEIGHT,
       "--width",
       process.env.WIDTH,
+      "--keep-binary",
+      "--use-local-file",
     ];
 
     // Platform-specific parameters
